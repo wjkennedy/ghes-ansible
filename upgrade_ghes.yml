@@ -1,0 +1,61 @@
+---
+- name: Upgrade GitHub Enterprise Server
+  hosts: ghes_servers
+  become: yes
+  vars:
+    upgrade_pkg_url: "https://example.com/github-enterprise-3.11.0.pkg"
+    upgrade_pkg_name: "github-enterprise-3.11.0.pkg"
+    pkg_dest: "/var/tmp/{{ upgrade_pkg_name }}"
+    log_file: "/var/log/ghes_upgrade.log"
+    maintenance_message: "Upgrade in progress to version 3.11.0"
+
+  tasks:
+
+    - name: Display current GHES version
+      shell: ghe-version
+      register: ghes_version
+      ignore_errors: yes
+
+    - name: Log current version
+      shell: echo "Current version: {{ ghes_version.stdout }}" >> {{ log_file }}
+
+    - name: Enable maintenance mode
+      shell: ghe-maintenance -s -m "{{ maintenance_message }}"
+
+    - name: Log maintenance enablement
+      shell: echo "Maintenance mode enabled with message: {{ maintenance_message }}" >> {{ log_file }}
+
+    - name: Download GHES upgrade package
+      get_url:
+        url: "{{ upgrade_pkg_url }}"
+        dest: "{{ pkg_dest }}"
+        mode: '0777'
+
+    - name: Set ownership to admin:admin
+      file:
+        path: "{{ pkg_dest }}"
+        owner: admin
+        group: admin
+
+    - name: Set permissions to 777
+      file:
+        path: "{{ pkg_dest }}"
+        mode: '0777'
+
+    - name: Log download and permission change
+      shell: |
+        echo "Downloaded upgrade package to {{ pkg_dest }}" >> {{ log_file }}
+        echo "Set ownership to admin:admin and permissions to 777" >> {{ log_file }}
+
+    - name: Execute upgrade
+      shell: ghe-upgrade "{{ pkg_dest }}"
+      register: upgrade_output
+
+    - name: Log upgrade result
+      shell: echo "Upgrade output: {{ upgrade_output.stdout }}" >> {{ log_file }}
+
+    - name: Disable maintenance mode
+      shell: ghe-maintenance -u
+
+    - name: Log maintenance disable
+      shell: echo "Maintenance mode disabled" >> {{ log_file }}
